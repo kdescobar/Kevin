@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 ##################################################
 # GNU Radio Python Flow Graph
-# Title: Syncronizaiton
-# Author: Kevin
-# Generated: Wed Nov 20 17:20:05 2019
+# Title: Top Block
+# Generated: Thu Nov 14 14:18:46 2019
 ##################################################
 
 from distutils.version import StrictVersion
@@ -34,12 +33,12 @@ import time
 from gnuradio import qtgui
 
 
-class syncronization2(gr.top_block, Qt.QWidget):
+class top_block(gr.top_block, Qt.QWidget):
 
     def __init__(self):
-        gr.top_block.__init__(self, "Syncronizaiton")
+        gr.top_block.__init__(self, "Top Block")
         Qt.QWidget.__init__(self)
-        self.setWindowTitle("Syncronizaiton")
+        self.setWindowTitle("Top Block")
         qtgui.util.check_set_qss()
         try:
             self.setWindowIcon(Qt.QIcon.fromTheme('gnuradio-grc'))
@@ -57,7 +56,7 @@ class syncronization2(gr.top_block, Qt.QWidget):
         self.top_grid_layout = Qt.QGridLayout()
         self.top_layout.addLayout(self.top_grid_layout)
 
-        self.settings = Qt.QSettings("GNU Radio", "syncronization2")
+        self.settings = Qt.QSettings("GNU Radio", "top_block")
 
         if StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
             self.restoreGeometry(self.settings.value("geometry").toByteArray())
@@ -68,6 +67,9 @@ class syncronization2(gr.top_block, Qt.QWidget):
         # Variables
         ##################################################
         self.samp_rate = samp_rate = 3000000
+        self.min_freq = min_freq = 0e3*(2*3.14)/samp_rate
+        self.max_freq = max_freq = 20e3*(2*3.14)/samp_rate
+        self.loop_bw = loop_bw = 1e3*(2*3.14)/samp_rate
         self.fc = fc = 2.45e9
 
         ##################################################
@@ -80,6 +82,7 @@ class syncronization2(gr.top_block, Qt.QWidget):
         		channels=range(1),
         	),
         )
+        self.uhd_usrp_source_0.set_clock_source('internal', 0)
         self.uhd_usrp_source_0.set_samp_rate(samp_rate)
         self.uhd_usrp_source_0.set_time_now(uhd.time_spec(time.time()), uhd.ALL_MBOARDS)
         self.uhd_usrp_source_0.set_center_freq(fc, 0)
@@ -87,7 +90,7 @@ class syncronization2(gr.top_block, Qt.QWidget):
         self.qtgui_freq_sink_x_0 = qtgui.freq_sink_c(
         	1024, #size
         	firdes.WIN_BLACKMAN_hARRIS, #wintype
-        	fc, #fc
+        	0, #fc
         	samp_rate, #bw
         	"", #name
         	1 #number of inputs
@@ -134,7 +137,7 @@ class syncronization2(gr.top_block, Qt.QWidget):
         self.connect((self.uhd_usrp_source_0, 0), (self.qtgui_freq_sink_x_0, 0))
 
     def closeEvent(self, event):
-        self.settings = Qt.QSettings("GNU Radio", "syncronization2")
+        self.settings = Qt.QSettings("GNU Radio", "top_block")
         self.settings.setValue("geometry", self.saveGeometry())
         event.accept()
 
@@ -144,7 +147,28 @@ class syncronization2(gr.top_block, Qt.QWidget):
     def set_samp_rate(self, samp_rate):
         self.samp_rate = samp_rate
         self.uhd_usrp_source_0.set_samp_rate(self.samp_rate)
-        self.qtgui_freq_sink_x_0.set_frequency_range(self.fc, self.samp_rate)
+        self.qtgui_freq_sink_x_0.set_frequency_range(0, self.samp_rate)
+        self.set_min_freq(0e3*(2*3.14)/self.samp_rate)
+        self.set_max_freq(20e3*(2*3.14)/self.samp_rate)
+        self.set_loop_bw(1e3*(2*3.14)/self.samp_rate)
+
+    def get_min_freq(self):
+        return self.min_freq
+
+    def set_min_freq(self, min_freq):
+        self.min_freq = min_freq
+
+    def get_max_freq(self):
+        return self.max_freq
+
+    def set_max_freq(self, max_freq):
+        self.max_freq = max_freq
+
+    def get_loop_bw(self):
+        return self.loop_bw
+
+    def set_loop_bw(self, loop_bw):
+        self.loop_bw = loop_bw
 
     def get_fc(self):
         return self.fc
@@ -152,65 +176,9 @@ class syncronization2(gr.top_block, Qt.QWidget):
     def set_fc(self, fc):
         self.fc = fc
         self.uhd_usrp_source_0.set_center_freq(self.fc, 0)
-        self.qtgui_freq_sink_x_0.set_frequency_range(self.fc, self.samp_rate)
 
 
-    ###################################
-    # Timing function added by Kevin. This function allows the user specify the radio start time and resets the pps on the radio for syncronization. 
-    # Code based on code from:
-    # http://lists.ettus.com/pipermail/usrp-users_lists.ettus.com/attachments/20150115/66ac59c6/attachment-0002.html
-    ####################################
-
-    def timing(self):    
-        
-        # Get user time
-        print('Type in desired start time (min only)')
-        user_start_time = (int(input()),)
-
-        # Convert local time to sturct_time format
-        local_time = time.time()
-        user_time = time.localtime(local_time)
-        
-        # Create future time in struct_time format
-        t = user_time[0:4]+user_start_time+(0,)+user_time[6:9]
-        
-        # Convert future time to seconds
-        future_time = time.mktime(t)
-
-        # Set start time delay to time difference between future and local time
-        start_time = int(future_time - local_time)
-        
-        # Set start time, where start_time > 2.0
-        self.uhd_usrp_source_0.set_start_time(uhd.time_spec(start_time))
-       
-        # Set to one radio next pps, initially
-        self.uhd_usrp_source_0.set_time_unknown_pps(uhd.time_spec(0.0))
-        curr_hw_time = self.uhd_usrp_source_0.get_time_last_pps()
-        while curr_hw_time==self.uhd_usrp_source_0.get_time_last_pps():
-            pass
-        # Sleep for 50ms
-        time.sleep(0.05)
-
-        # Synchronize both radios time registers
-        self.uhd_usrp_source_0.set_time_next_pps(uhd.time_spec_t(0.0))
-   
-        # Sleep for a couple seconds to make sure all usrp time registers latched and settled
-        time.sleep(2)
-   
-        # Check the last pps time
-        for ii in range(0,5):
-            last_pps0 = self.uhd_usrp_source_0.get_time_last_pps()
-   
-            print("last_pps0 : %6.12f"%uhd.time_spec_t.get_real_secs(last_pps0))
-           
-            time.sleep(1.0)
-        
-        # For completion varification
-        print('Cute cuddly Kittens') 
-        print(time.ctime())
-
-
-def main(top_block_cls=syncronization2, options=None):
+def main(top_block_cls=top_block, options=None):
 
     if StrictVersion("4.5.0") <= StrictVersion(Qt.qVersion()) < StrictVersion("5.0.0"):
         style = gr.prefs().get_string('qtgui', 'style', 'raster')
@@ -218,7 +186,6 @@ def main(top_block_cls=syncronization2, options=None):
     qapp = Qt.QApplication(sys.argv)
 
     tb = top_block_cls()
-    tb.timing()
     tb.start()
     tb.show()
 
